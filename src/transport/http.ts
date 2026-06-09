@@ -59,6 +59,11 @@ export interface HttpServerOptions {
    * plug in OAuth JWT expiry checks.
    */
   validateBearerToken?: (token: string) => boolean;
+  /**
+   * Optional async bearer-token validator. When provided, the /mcp auth check
+   * will call this if the static safeTokenCompare fails — allows OAuth JWTs.
+   */
+  validateBearerTokenAsync?: (token: string) => Promise<boolean>;
 }
 
 export interface HttpServerResult {
@@ -303,9 +308,13 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
     // Route: /mcp (all methods)
     if (pathname === "/mcp") {
-      // Auth check
+      // Auth check — accept static MCP_AUTH_TOKEN or OAuth JWT
       const token = extractBearerToken(req);
-      if (!token || !safeTokenCompare(token, authToken)) {
+      let authed = token !== null && safeTokenCompare(token, authToken);
+      if (!authed && token && validateBearerTokenAsync) {
+        try { authed = await validateBearerTokenAsync(token); } catch { authed = false; }
+      }
+      if (!authed) {
         sendJson(res, 401, { error: "Unauthorized" });
         return;
       }
