@@ -148,6 +148,7 @@ export async function main(): Promise<void> {
   // 6. Connect transports based on MCP_TRANSPORT mode
   const httpResults: HttpServerResult[] = [];
   let oauthCloseFn: (() => void) | null = null;
+  let oauthTokenValidator: ((token: string) => Promise<boolean>) | undefined;
 
   if (transportMode === "stdio" || transportMode === "both") {
     await connectStdioTransport(server);
@@ -209,6 +210,10 @@ export async function main(): Promise<void> {
         res: import("node:http").ServerResponse
       ) => void;
       oauthCloseFn = oauthApp.close;
+      const oauthProvider = oauthApp.provider;
+      oauthTokenValidator = async (token: string): Promise<boolean> => {
+        try { await oauthProvider.verifyAccessToken(token); return true; } catch { return false; }
+      };
       logger.info("oauth connector mounted", { publicUrl });
     }
 
@@ -220,6 +225,7 @@ export async function main(): Promise<void> {
       trustProxy,
       healthCheck,
       oauthHandler,
+      validateBearerTokenAsync: oauthTokenValidator,
     });
     await server.connect(httpResult.transport);
     httpResults.push(httpResult);
