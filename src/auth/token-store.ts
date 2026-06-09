@@ -112,6 +112,12 @@ function isValidTokenShape(data: unknown): data is OAuthTokens {
  * diagnostics.
  */
 export async function loadTokens(tokenDir?: string): Promise<OAuthTokens | null> {
+if (process.env.WHOOP_TOKENS) {
+    try {
+      const parsed: unknown = JSON.parse(process.env.WHOOP_TOKENS);
+      if (isValidTokenShape(parsed)) return parsed;
+    } catch {}
+  }
   const filePath = tokenFilePath(tokenDir);
   const safePath = redactHomePath(filePath);
   try {
