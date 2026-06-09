@@ -59,6 +59,8 @@ export interface HttpServerOptions {
    * plug in OAuth JWT expiry checks.
    */
   validateBearerToken?: (token: string) => boolean;
+  /** Async validator for OAuth JWTs Ã¢ÂÂ called when static token compare fails. */
+  validateBearerTokenAsync?: (token: string) => Promise<boolean>;
   /**
    * Optional async bearer-token validator. When provided, the /mcp auth check
    * will call this if the static safeTokenCompare fails — allows OAuth JWTs.
