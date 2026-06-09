@@ -61,11 +61,6 @@ export interface HttpServerOptions {
   validateBearerToken?: (token: string) => boolean;
   /** Async validator for OAuth JWTs Ã¢ÂÂ called when static token compare fails. */
   validateBearerTokenAsync?: (token: string) => Promise<boolean>;
-  /**
-   * Optional async bearer-token validator. When provided, the /mcp auth check
-   * will call this if the static safeTokenCompare fails — allows OAuth JWTs.
-   */
-  validateBearerTokenAsync?: (token: string) => Promise<boolean>;
 }
 
 export interface HttpServerResult {
@@ -340,7 +335,7 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
       // Track connection
       activeConnections++;
-      const sseEntry = { res, token };
+      const sseEntry = { res, token: token! };
       if (req.method === "GET") {
         sseConnections.add(sseEntry);
       }
