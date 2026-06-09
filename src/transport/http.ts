@@ -201,6 +201,7 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
     mcpRateLimit = { windowMs: 60_000, max: 100 },
     sseReauthIntervalMs = 5 * 60 * 1000,
     validateBearerToken,
+    validateBearerTokenAsync,
   } = options;
 
   if (!authToken) {
