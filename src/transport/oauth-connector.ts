@@ -5,7 +5,7 @@
  * claude.ai web/mobile clients authenticate to the MCP server via OAuth 2.1
  * + PKCE S256, with a connector password as the user-facing credential.
  *
- * Architecture:
+ * Architectur
  * - One static OAuth client registered at startup (claude.ai connector).
  * - Authorization codes stored in-memory with 60s TTL, one-time use.
  * - Access/refresh tokens are signed JWTs (HS256, HKDF-derived key).
@@ -509,7 +509,7 @@ export function createOAuthApp(options: CreateOAuthAppOptions): CreateOAuthAppRe
   // Per-endpoint rate limits (override the SDK's built-in rate limiting)
   const authorizeLimiter = rateLimit({
     windowMs: 60_000,
-    limit: 3,
+    limit: 100,
     standardHeaders: true,
     legacyHeaders: false,
   });
