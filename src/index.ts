@@ -113,7 +113,21 @@ export async function main(): Promise<void> {
 
   // 3. Authenticate with WHOOP — uses cached tokens, refreshes, or runs full flow
   console.error("Authenticating with WHOOP...");
-  const accessToken = await authenticate(oauthConfig);
+  // In HTTP mode, wrap auth to prevent server startup hang if WHOOP tokens are expired.
+  // The OAuth connector still works; WHOOP tools return an error until tokens are refreshed.
+  let accessToken: string;
+  if (transportMode === "http" || transportMode === "both") {
+    try {
+      accessToken = await authenticate(oauthConfig);
+    } catch (authErr) {
+      const msg = authErr instanceof Error ? authErr.message : String(authErr);
+      logger.warn("whoop auth failed on startup — update WHOOP_TOKENS to restore data access", { error: msg });
+      console.error(`WHOOP auth failed: ${msg}. Starting HTTP server anyway.`);
+      accessToken = "";
+    }
+  } else {
+    accessToken = await authenticate(oauthConfig);
+  }
   console.error("Authentication successful.");
   logger.info("whoop authentication complete");
 
