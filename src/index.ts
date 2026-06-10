@@ -115,19 +115,28 @@ export async function main(): Promise<void> {
   console.error("Authenticating with WHOOP...");
   // In HTTP mode, wrap auth to prevent server startup hang if WHOOP tokens are expired.
   // The OAuth connector still works; WHOOP tools return an error until tokens are refreshed.
-  let accessToken: string;
+  // In HTTP mode, skip the interactive OAuth flow entirely.
+  // performOAuthFlow() binds PORT for its callback server, which conflicts
+  // with our HTTP server startup (EADDRINUSE crash-loop).
+  // Instead, read the access token directly from WHOOP_TOKENS env var.
+  // If missing or expired, WHOOP tools return errors until env var is updated.
+  let accessToken: string = "";
   if (transportMode === "http" || transportMode === "both") {
-    // Race auth against 8s timeout so the HTTP server always starts
-    const authTimeout = new Promise<string>((_, reject) =>
-      setTimeout(() => reject(new Error("WHOOP auth timed out — update WHOOP_TOKENS")), 8000)
-    );
-    try {
-      accessToken = await Promise.race([authenticate(oauthConfig), authTimeout]);
-    } catch (authErr) {
-      const msg = authErr instanceof Error ? authErr.message : String(authErr);
-      logger.warn("whoop auth failed on startup", { error: msg });
-      console.error(`WHOOP auth failed: ${msg}. Starting HTTP server anyway.`);
-      accessToken = "";
+    const rawTokens = process.env.WHOOP_TOKENS;
+    if (rawTokens) {
+      try {
+        const parsed = JSON.parse(rawTokens) as { access_token?: string; accessToken?: string };
+        accessToken = parsed.access_token ?? parsed.accessToken ?? "";
+        if (accessToken) {
+          logger.info("HTTP mode: loaded WHOOP token from WHOOP_TOKENS env var");
+        } else {
+          logger.warn("HTTP mode: WHOOP_TOKENS parsed but no access_token field found");
+        }
+      } catch {
+        logger.warn("HTTP mode: WHOOP_TOKENS env var is not valid JSON");
+      }
+    } else {
+      logger.warn("HTTP mode: WHOOP_TOKENS not set — update Railway env var to enable WHOOP tools");
     }
   } else {
     accessToken = await authenticate(oauthConfig);
