@@ -117,11 +117,15 @@ export async function main(): Promise<void> {
   // The OAuth connector still works; WHOOP tools return an error until tokens are refreshed.
   let accessToken: string;
   if (transportMode === "http" || transportMode === "both") {
+    // Race auth against 8s timeout so the HTTP server always starts
+    const authTimeout = new Promise<string>((_, reject) =>
+      setTimeout(() => reject(new Error("WHOOP auth timed out — update WHOOP_TOKENS")), 8000)
+    );
     try {
-      accessToken = await authenticate(oauthConfig);
+      accessToken = await Promise.race([authenticate(oauthConfig), authTimeout]);
     } catch (authErr) {
       const msg = authErr instanceof Error ? authErr.message : String(authErr);
-      logger.warn("whoop auth failed on startup — update WHOOP_TOKENS to restore data access", { error: msg });
+      logger.warn("whoop auth failed on startup", { error: msg });
       console.error(`WHOOP auth failed: ${msg}. Starting HTTP server anyway.`);
       accessToken = "";
     }
