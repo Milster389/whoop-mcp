@@ -180,10 +180,11 @@ export function createWhoopClient(options: WhoopClientOptions): WhoopClient {
   }
 
   async function parseErrorBody(response: Response): Promise<unknown> {
+    const text = await response.text();
     try {
-      return await response.json();
+      return JSON.parse(text) as unknown;
     } catch {
-      return await response.text();
+      return text;
     }
   }
 
