@@ -78,6 +78,8 @@ function tokenFilePath(tokenDir?: string): string {
  * the token file with 0600 (user-only read/write) permissions.
  */
 export async function saveTokens(tokens: OAuthTokens, tokenDir?: string): Promise<void> {
+  // Keep env var in sync so rotated tokens survive this process lifetime
+  process.env.WHOOP_TOKENS = JSON.stringify(tokens);
   const dir = tokenDir ?? DEFAULT_TOKEN_DIR;
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await writeFile(tokenFilePath(tokenDir), JSON.stringify(tokens, null, 2), {
