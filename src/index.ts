@@ -244,6 +244,72 @@ export async function main(): Promise<void> {
       logger.info("oauth connector mounted", { publicUrl });
     }
 
+    // ---------------------------------------------------------------------------
+    // WHOOP re-auth endpoint — refreshes expired tokens without redeploying
+    // ---------------------------------------------------------------------------
+    if (oauthHandler && publicUrl) {
+      let whoopPendingState: string | null = null;
+      const baseOauthHandler = oauthHandler;
+      oauthHandler = (async (req, res) => {
+        const url = new URL(req.url ?? "/", publicUrl);
+
+        if (url.pathname === "/whoop-reauth") {
+          const { randomBytes } = await import("node:crypto");
+          whoopPendingState = randomBytes(16).toString("hex");
+          const redirectUri = process.env.WHOOP_REDIRECT_URI ?? `${publicUrl}/callback`;
+          const authUrl = new URL("https://api.prod.whoop.com/oauth/oauth2/auth");
+          authUrl.searchParams.set("client_id", clientId);
+          authUrl.searchParams.set("redirect_uri", redirectUri);
+          authUrl.searchParams.set("response_type", "code");
+          authUrl.searchParams.set("scope", "offline read:recovery read:cycles read:workout read:sleep read:profile read:body_measurement");
+          authUrl.searchParams.set("state", whoopPendingState);
+          res.writeHead(302, { Location: authUrl.toString() });
+          res.end();
+          return;
+        }
+
+        if (url.pathname === "/callback" && whoopPendingState !== null && url.searchParams.get("state") === whoopPendingState) {
+          const code = url.searchParams.get("code");
+          if (!code) { res.writeHead(400); res.end("Missing code"); return; }
+          try {
+            const redirectUri = process.env.WHOOP_REDIRECT_URI ?? `${publicUrl}/callback`;
+            const body = new URLSearchParams({
+              grant_type: "authorization_code",
+              code,
+              client_id: clientId,
+              client_secret: clientSecret,
+              redirect_uri: redirectUri,
+            });
+            const tokenResp = await fetch("https://api.prod.whoop.com/oauth/oauth2/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: body.toString(),
+            });
+            const tokenData = await tokenResp.json() as Record<string, unknown>;
+            if (!tokenResp.ok) throw new Error(JSON.stringify(tokenData));
+            await saveTokens({
+              access_token: tokenData.access_token as string,
+              refresh_token: tokenData.refresh_token as string,
+              expires_at: Date.now() + (((tokenData.expires_in as number) ?? 3600) * 1000),
+              token_type: (tokenData.token_type as string) ?? "Bearer",
+            });
+            whoopPendingState = null;
+            logger.info("WHOOP re-auth successful — new tokens live");
+            res.writeHead(200, { "Content-Type": "text/html" });
+            res.end("<h1>WHOOP Re-auth Successful</h1><p>Tokens updated. Close this tab and ask Claude for your recovery data.</p><p><em>Copy the new WHOOP_TOKENS value from Railway logs to persist across restarts.</em></p>");
+          } catch (err) {
+            whoopPendingState = null;
+            res.writeHead(500);
+            res.end(`Re-auth failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+          return;
+        }
+
+        // Fall through to MCP OAuth handler
+        return baseOauthHandler!(req, res);
+      }) as typeof oauthHandler;
+    }
+
     const httpResult = await createHttpServer({
       authToken,
       port,
