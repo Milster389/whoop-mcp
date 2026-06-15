@@ -298,6 +298,8 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
       (pathname === "/authorize" ||
         pathname === "/token" ||
         pathname === "/register" ||
+        pathname === "/callback" ||
+        pathname === "/whoop-reauth" ||
         pathname.startsWith("/.well-known/"))
     ) {
       oauthHandler(req, res);
